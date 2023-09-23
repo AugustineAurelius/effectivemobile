@@ -7,15 +7,17 @@ import (
 	"effectivemobile/kafka/producer"
 	"encoding/json"
 	"fmt"
-	"github.com/segmentio/kafka-go"
+	"github.com/gin-gonic/gin"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
 	"regexp"
+	"strconv"
+	"sync"
 )
 
-const (
-	broker = "localhost:9092"
-	topic  = "FIO"
-)
+var router = gin.Default()
 
 func init() {
 	config, err := initializers.LoadConfig(".")
@@ -24,54 +26,129 @@ func init() {
 	}
 	initializers.ConnectKafka(&config)
 	initializers.ConnectDB(&config)
+
+	router.GET("/fios", func(c *gin.Context) {
+		var fios []FIO.FIO
+		err := initializers.DB.Find(&fios).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, fios)
+	})
+
+	// Обработка GET-запроса для получения пользователя по ID
+	router.GET("/fios/:id", func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+			return
+		}
+
+		var user FIO.FIO
+		err = initializers.DB.First(&user, id).Error
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusOK, user)
+	})
+
+	// Обработка POST-запроса для создания пользователя
+	router.POST("/fios", func(c *gin.Context) {
+		var user FIO.FIO
+		err := c.ShouldBindJSON(&user)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
+
+		err = initializers.DB.Create(&user).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusCreated, user)
+	})
+
+	// Обработка DELETE-запроса для удаления пользователя по ID
+	router.DELETE("/users/:id", func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+			return
+		}
+
+		err = initializers.DB.Delete(&FIO.FIO{}, id).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
+	})
 }
 
 func main() {
 	initializers.DB.AutoMigrate(&FIO.FIO{})
 	fmt.Println("? Migration complete")
 
-}
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
 
-//consume(context.Background())
+	go func() {
+		defer wg.Done()
+		err := router.Run(":8764")
+		if err != nil {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
 
-func consume(ctx context.Context) {
-	//DB := repository.Init()
+	go func() {
+		defer wg.Done()
+		for {
+			var data map[string]interface{}
+			msg, err := initializers.KFK.ReadMessage(ctx)
 
-	// initialize a new reader with the brokers and topic
-	// the groupID identifies the consumer and prevents
-	// it from receiving duplicate messages
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{broker},
-		Topic:   topic,
-		GroupID: "my-group",
-	})
-	for {
-		var data map[string]interface{}
-		msg, err := r.ReadMessage(ctx)
+			err = json.Unmarshal(msg.Value, &data)
 
-		err = json.Unmarshal(msg.Value, &data)
+			if flg, str := checkType(data); flg {
 
-		if flg, str := checkType(data); flg {
+				fi := FIO.NewFIO(data["name"].(string),
+					data["surname"].(string))
 
-			fi := FIO.NewFIO(data["name"].(string),
-				data["surname"].(string))
+				if val, ok := data["patronymic"]; ok {
+					fi.SetPatronymic(val.(string))
+				}
 
-			if val, ok := data["patronymic"]; ok {
-				fi.SetPatronymic(val.(string))
+				fmt.Println(fi)
+				//DB.Create(&fi)
+
+			} else {
+				msg.Value = append(msg.Value[:len(msg.Value)-1], []byte(`,"fail": "`+str+`"}`)...)
+				go producer.ProduceFailMessage(msg)
 			}
 
-			fmt.Println(fi)
-			//DB.Create(&fi)
-
-		} else {
-			msg.Value = append(msg.Value[:len(msg.Value)-1], []byte(`,"fail": "`+str+`"}`)...)
-			go producer.ProduceFailMessage(msg)
+			if err != nil {
+				panic("could not read message " + err.Error())
+			}
 		}
+	}()
 
-		if err != nil {
-			panic("could not read message " + err.Error())
-		}
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	<-sig
+
+	cancel()
+	wg.Wait()
+
+	err := initializers.KFK.Close()
+	if err != nil {
+		log.Fatalf("Failed to close Kafka reader: %v", err)
 	}
+
 }
 
 func checkType(data map[string]interface{}) (bool, string) {
