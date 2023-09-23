@@ -5,36 +5,37 @@ import (
 )
 
 type FIO struct {
-	name       string
-	surname    string
-	patronymic string
-	age        float64
-	gender     string
-	nation     string
+	ID         uint    `gorm:"primaryKey; autoIncrement"`
+	Name       string  `gorm:"embedded"`
+	Surname    string  `gorm:"embedded"`
+	Patronymic string  `gorm:"embedded"`
+	Age        float64 `gorm:"embedded"`
+	Gender     string  `gorm:"embedded"`
+	Nation     string  `gorm:"embedded"`
 }
 
 func NewFIO(name string, surname string) FIO {
-	return FIO{name: name, surname: surname,
-		age: enrichment2.AddAge(name), gender: enrichment2.AddGender(name),
-		nation: enrichment2.AddNation(name)}
+	return FIO{Name: name, Surname: surname,
+		Age: enrichment2.AddAge(name), Gender: enrichment2.AddGender(name),
+		Nation: enrichment2.AddNation(name)}
 }
 
-func (f FIO) Name() string {
-	return f.name
+func (f FIO) GetName() string {
+	return f.Name
 }
-func (f FIO) Surname() string {
-	return f.surname
+func (f FIO) GetSurname() string {
+	return f.Surname
 }
-func (f FIO) Patronymic() string {
-	return f.patronymic
+func (f FIO) GetPatronymic() string {
+	return f.Patronymic
 }
 
 func (f *FIO) SetName(name string) {
-	f.name = name
+	f.Name = name
 }
 func (f *FIO) SetSurname(surname string) {
-	f.surname = surname
+	f.Surname = surname
 }
 func (f *FIO) SetPatronymic(patronymic string) {
-	f.patronymic = patronymic
+	f.Patronymic = patronymic
 }
