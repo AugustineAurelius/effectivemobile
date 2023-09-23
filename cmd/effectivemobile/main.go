@@ -27,67 +27,17 @@ func init() {
 	initializers.ConnectKafka(&config)
 	initializers.ConnectDB(&config)
 
-	router.GET("/fios", func(c *gin.Context) {
-		var fios []FIO.FIO
-		err := initializers.DB.Find(&fios).Error
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, fios)
-	})
+	router.GET("/fios", getAllFIOs)
 
 	// Обработка GET-запроса для получения пользователя по ID
-	router.GET("/fios/:id", func(c *gin.Context) {
-		idStr := c.Param("id")
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
-			return
-		}
-
-		var user FIO.FIO
-		err = initializers.DB.First(&user, id).Error
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-			return
-		}
-		c.JSON(http.StatusOK, user)
-	})
+	router.GET("/fios/:id", getFIO)
 
 	// Обработка POST-запроса для создания пользователя
-	router.POST("/fios", func(c *gin.Context) {
-		var user FIO.FIO
-		err := c.ShouldBindJSON(&user)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-			return
-		}
-
-		err = initializers.DB.Create(&user).Error
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusCreated, user)
-	})
+	router.POST("/fios", createFIO)
 
 	// Обработка DELETE-запроса для удаления пользователя по ID
-	router.DELETE("/users/:id", func(c *gin.Context) {
-		idStr := c.Param("id")
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
-			return
-		}
-
-		err = initializers.DB.Delete(&FIO.FIO{}, id).Error
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
-	})
+	router.DELETE("/users/:id", deleteFIO)
+	router.PUT("/users/:id", updateFIO)
 }
 
 func main() {
@@ -124,7 +74,7 @@ func main() {
 				}
 
 				fmt.Println(fi)
-				//DB.Create(&fi)
+				initializers.DB.Create(&fi)
 
 			} else {
 				msg.Value = append(msg.Value[:len(msg.Value)-1], []byte(`,"fail": "`+str+`"}`)...)
@@ -149,6 +99,91 @@ func main() {
 		log.Fatalf("Failed to close Kafka reader: %v", err)
 	}
 
+}
+
+func updateFIO(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var fio FIO.FIO
+	err = initializers.DB.First(&fio, id).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		return
+	}
+
+	err = c.ShouldBindJSON(&fio)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	err = initializers.DB.Save(&fio).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, fio)
+}
+func getAllFIOs(c *gin.Context) {
+	var fios []FIO.FIO
+	err := initializers.DB.Find(&fios).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, fios)
+}
+func getFIO(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var user FIO.FIO
+	err = initializers.DB.First(&user, id).Error
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+func createFIO(c *gin.Context) {
+	var user FIO.FIO
+	err := c.ShouldBindJSON(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	err = initializers.DB.Create(&user).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, user)
+}
+func deleteFIO(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	err = initializers.DB.Delete(&FIO.FIO{}, id).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
 }
 
 func checkType(data map[string]interface{}) (bool, string) {
