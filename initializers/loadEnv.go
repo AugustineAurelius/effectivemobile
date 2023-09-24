@@ -14,10 +14,14 @@ type Config struct {
 
 	ClientOrigin string `mapstructure:"CLIENT_ORIGIN"`
 
-	BrokerKafka    string `mapstructure:"BROKER_KAFKA"`
-	Topic          string `mapstructure:"TOPIC"`
-	FailTopic      string `mapstructure:"FAIL_TOPIC"`
-	PartitionKafka string `mapstructure:"PARTITION_KAFKA"`
+	BrokerKafka     string `mapstructure:"BROKER_KAFKA"`
+	FailBrokerKafka string `mapstructure:"FAIL_BROKER_KAFKA"`
+	Topic           string `mapstructure:"TOPIC"`
+	FailTopic       string `mapstructure:"FAIL_TOPIC"`
+	PartitionKafka  int    `mapstructure:"PARTITION_KAFKA"`
+
+	RedisServer1 string `mapstructure:"REDIS_SERVER_1"`
+	RedisServer2 string `mapstructure:"REDIS_SERVER_2"`
 }
 
 func LoadConfig(path string) (config Config, err error) {

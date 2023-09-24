@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/cache/v9"
+	"golang.org/x/crypto/sha3"
 	"log"
 	"net/http"
 	"os"
@@ -20,37 +22,36 @@ import (
 var router = gin.Default()
 
 func init() {
-	config, err := initializers.LoadConfig(".")
+	config, err := initializers.LoadConfig(".") // Загружаем конфиг файл
 	if err != nil {
 		log.Fatal("? Could not load environment variables", err)
 	}
-	initializers.ConnectKafka(&config)
-	initializers.ConnectDB(&config)
-
+	initializers.ConnectKafka(&config) //Инициализируем читателя кафки
+	initializers.ConnectDB(&config)    //Инициализируем подключение к БД
+	initializers.InitializeRedis(&config)
+	//Добавление методов по принципу CRUD
 	router.GET("/fios", getAllFIOs)
-
-	// Обработка GET-запроса для получения пользователя по ID
 	router.GET("/fios/:id", getFIO)
-
-	// Обработка POST-запроса для создания пользователя
 	router.POST("/fios", createFIO)
-
-	// Обработка DELETE-запроса для удаления пользователя по ID
-	router.DELETE("/users/:id", deleteFIO)
-	router.PUT("/users/:id", updateFIO)
+	router.DELETE("/fios/:id", deleteFIO)
+	router.PUT("/fios/:id", updateFIO)
 }
 
 func main() {
-	initializers.DB.AutoMigrate(&FIO.FIO{})
+	err := initializers.DB.AutoMigrate(&FIO.FIO{}) //Создаем стол путем миграции
+	if err != nil {
+		log.Fatalf("Failed to migrate: %v", err)
+	}
 	fmt.Println("? Migration complete")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
+
+	wg := &sync.WaitGroup{} //инициализируем вэйт группу
+	wg.Add(2)               //определяем количество горутин для группы
 
 	go func() {
-		defer wg.Done()
-		err := router.Run(":8764")
+		defer wg.Done()            // отложенно сообщаем о прекращении горутины
+		err := router.Run(":8764") // инизиализируем сервер
 		if err != nil {
 			log.Fatalf("Failed to start server: %v", err)
 		}
@@ -59,26 +60,58 @@ func main() {
 	go func() {
 		defer wg.Done()
 		for {
-			var data map[string]interface{}
-			msg, err := initializers.KFK.ReadMessage(ctx)
+			var data map[string]interface{}               //инициализируем ассоциативный список для записини в него данных из кафки
+			msg, err := initializers.KFK.ReadMessage(ctx) // читаем сообщение
 
 			err = json.Unmarshal(msg.Value, &data)
 
-			if flg, str := checkType(data); flg {
+			if flg, str := checkType(data); flg { //Проверяем корректиность наличие и корректность обязательных полей
 
 				fi := FIO.NewFIO(data["name"].(string),
-					data["surname"].(string))
+					data["surname"].(string)) // создаем новое фио
 
-				if val, ok := data["patronymic"]; ok {
-					fi.SetPatronymic(val.(string))
+				if val, ok := data["patronymic"]; ok { // если есть отчество то, то мы его проверяем и добавляем в структуру
+					if check, _ := checkValue(val.(string)); check {
+						fi.SetPatronymic(val.(string))
+					}
 				}
 
-				fmt.Println(fi)
-				initializers.DB.Create(&fi)
+				fmt.Println(fi)             //выводим в консоль
+				initializers.DB.Create(&fi) // сразу кладем в БД
+				sha := sha3.New256()
+				key, err := sha.Write([]byte(fi.GetName() +
+					fi.GetSurname() +
+					fi.GetPatronymic()))
+				if err != nil {
+					log.Fatalln(err)
+				}
+				obj := new(FIO.FIO)
+				err = initializers.Cache.Once(&cache.Item{
+					Key:   strconv.Itoa(key),
+					Value: obj, // destination
+					Do: func(*cache.Item) (interface{}, error) {
+						return &FIO.FIO{
+							Name:       fi.GetName(),
+							Surname:    fi.GetSurname(),
+							Patronymic: fi.GetPatronymic(),
+							Age:        fi.GetAge(),
+							Gender:     fi.GetGender(),
+							Nation:     fi.GetNation(),
+						}, nil
+					},
+				})
+				if err != nil {
+					panic(err)
+				}
 
 			} else {
-				msg.Value = append(msg.Value[:len(msg.Value)-1], []byte(`,"fail": "`+str+`"}`)...)
-				go producer.ProduceFailMessage(msg)
+
+				msg.Value = append(msg.Value[:len(msg.Value)-1], []byte(`,"fail": "`+str+`"}`)...) // иначе добавляем обогащаем ошибкой
+				producer.ProduceFailMessage(msg)
+
+				if err != nil {
+					log.Fatal("failed to write messages:", err)
+				} // и отправляем в FIO_FAILED
 			}
 
 			if err != nil {
@@ -87,14 +120,14 @@ func main() {
 		}
 	}()
 
-	sig := make(chan os.Signal, 1)
+	sig := make(chan os.Signal, 1) // создаем буфферезированный канал из сигналов ос
 	signal.Notify(sig, os.Interrupt)
-	<-sig
+	<-sig // ожидаем в консаль ктрл+с
 
 	cancel()
 	wg.Wait()
 
-	err := initializers.KFK.Close()
+	err = initializers.KFK.Close() //закрываем
 	if err != nil {
 		log.Fatalf("Failed to close Kafka reader: %v", err)
 	}
@@ -105,14 +138,14 @@ func updateFIO(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fio ID"})
 		return
 	}
 
 	var fio FIO.FIO
 	err = initializers.DB.First(&fio, id).Error
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fio"})
 		return
 	}
 
@@ -124,7 +157,7 @@ func updateFIO(c *gin.Context) {
 
 	err = initializers.DB.Save(&fio).Error
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fio"})
 		return
 	}
 
@@ -150,7 +183,7 @@ func getFIO(c *gin.Context) {
 	var user FIO.FIO
 	err = initializers.DB.First(&user, id).Error
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "FIO not found"})
 		return
 	}
 	c.JSON(http.StatusOK, user)
@@ -183,7 +216,7 @@ func deleteFIO(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
+	c.JSON(http.StatusOK, gin.H{"message": "FIO deleted"})
 }
 
 func checkType(data map[string]interface{}) (bool, string) {

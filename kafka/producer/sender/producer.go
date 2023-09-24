@@ -18,7 +18,7 @@ func main() {
 
 	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	_, err = conn.WriteMessages(
-		kafka.Message{Value: []byte(`{"name": "Dima", "surname": "Fednova", "patronymic": "Alekseevich"}`)},
+		kafka.Message{Value: []byte(`{"name": "Kirill", "surname": "Fednov1a", "patronymic": "Alekseevich"}`)},
 	)
 	if err != nil {
 		log.Fatal("failed to write messages:", err)

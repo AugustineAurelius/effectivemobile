@@ -2,16 +2,18 @@ package FIO
 
 import (
 	enrichment2 "effectivemobile/FIO/enrichment"
+	"gorm.io/gorm"
 )
 
 type FIO struct {
-	ID         uint    `gorm:"primaryKey; autoIncrement"`
-	Name       string  `gorm:"embedded"`
-	Surname    string  `gorm:"embedded"`
-	Patronymic string  `gorm:"embedded"`
-	Age        float64 `gorm:"embedded"`
-	Gender     string  `gorm:"embedded"`
-	Nation     string  `gorm:"embedded"`
+	gorm.Model
+	ID         uint `gorm:"primaryKey; autoIncrement"`
+	Name       string
+	Surname    string
+	Patronymic string
+	Age        float64
+	Gender     string
+	Nation     string
 }
 
 func NewFIO(name string, surname string) FIO {
@@ -28,6 +30,15 @@ func (f FIO) GetSurname() string {
 }
 func (f FIO) GetPatronymic() string {
 	return f.Patronymic
+}
+func (f FIO) GetAge() float64 {
+	return f.Age
+}
+func (f FIO) GetGender() string {
+	return f.Gender
+}
+func (f FIO) GetNation() string {
+	return f.Nation
 }
 
 func (f *FIO) SetName(name string) {
