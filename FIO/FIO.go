@@ -14,12 +14,14 @@ type FIO struct {
 	Nation     string
 }
 
+// Конструктор
 func NewFIO(name string, surname string) FIO {
 	return FIO{Name: name, Surname: surname,
 		Age: enrichment2.AddAge(name), Gender: enrichment2.AddGender(name),
 		Nation: enrichment2.AddNation(name)}
 }
 
+// Геттеры и Сеттеры
 func (f FIO) GetName() string {
 	return f.Name
 }

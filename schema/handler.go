@@ -116,7 +116,9 @@ func CreateSchema(c *gin.Context) (graphql.Schema, error) {
 			Fields: fields,
 		},
 	)
-	/*****/
+	/*
+		CRUD мутации
+	*/
 	var mutationType = graphql.NewObject(graphql.ObjectConfig{
 		Name: "Mutation",
 		Fields: graphql.Fields{

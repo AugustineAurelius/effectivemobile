@@ -24,6 +24,7 @@ type Config struct {
 	RedisServer2 string `mapstructure:"REDIS_SERVER_2"`
 }
 
+// Парсим конфиг файл с помощью вайпера
 func LoadConfig(path string) (config Config, err error) {
 	viper.AddConfigPath(path)
 	viper.SetConfigType("env")

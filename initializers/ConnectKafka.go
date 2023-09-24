@@ -7,6 +7,7 @@ import (
 
 var KFK *kafka.Reader
 
+// Инициализируем слушателя кафки
 func ConnectKafka(config *Config) {
 
 	KFK = kafka.NewReader(kafka.ReaderConfig{

@@ -9,6 +9,7 @@ import (
 var rdb *redis.Client
 var Cache *cache.Cache
 
+// Инициализируем кэширование
 func InitializeRedis(config *Config) {
 	rdb = redis.NewClient(&redis.Options{
 		Addr: "localhost:5432",

@@ -14,6 +14,7 @@ const (
 	partition = 0
 )
 
+// Отправляет Неверное Фио в другой топик
 func ProduceFailMessage(message kafka.Message) {
 	conn, err := kafka.DialLeader(context.Background(), "tcp", broker, failTopic, partition)
 	if err != nil {

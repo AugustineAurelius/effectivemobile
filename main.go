@@ -108,7 +108,7 @@ func main() {
 					panic(err)
 				}
 
-			} else {
+			} else { //Если плохое сообщение отправляем его в другую очередь
 
 				msg.Value = append(msg.Value[:len(msg.Value)-1], []byte(`,"fail": "`+str+`"}`)...) // иначе добавляем обогащаем ошибкой
 				producer.ProduceFailMessage(msg)
@@ -224,7 +224,7 @@ func deleteFIO(c *gin.Context) {
 }
 
 func checkType(data map[string]interface{}) (bool, string) {
-	var keys []string
+	var keys []string //Создаем массив
 
 	var flg = false
 	for k, v := range data {
@@ -236,7 +236,7 @@ func checkType(data map[string]interface{}) (bool, string) {
 			return false, "Неверный тип значений"
 		}
 	}
-	_, str := checkKeys(keys, "name")
+	_, str := checkKeys(keys, "name") //Проверяем есть ли в массиве ключей обязательные поля
 	if str != "" {
 		return false, str
 	}
@@ -245,7 +245,7 @@ func checkType(data map[string]interface{}) (bool, string) {
 		return false, str
 	}
 
-	_, str = checkValue(data["name"].(string))
+	_, str = checkValue(data["name"].(string)) // проверяем строку обязательных полей на корректность данных
 	if str != "" {
 		return false, str
 	}
