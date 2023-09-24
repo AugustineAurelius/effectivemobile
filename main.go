@@ -21,12 +21,14 @@ import (
 )
 
 var router = gin.Default()
+var serverPort string
 
 func init() {
 	config, err := initializers.LoadConfig(".") // Загружаем конфиг файл
 	if err != nil {
-		log.Fatal("? Could not load environment variables", err)
+		log.Fatal("Could not load environment variables", err)
 	}
+	serverPort = config.ServerPort
 	initializers.ConnectKafka(&config) //Инициализируем читателя кафки
 	initializers.ConnectDB(&config)    //Инициализируем подключение к БД
 	initializers.InitializeRedis(&config)
@@ -44,7 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to migrate: %v", err)
 	}
-	fmt.Println("? Migration complete")
+	fmt.Println("Migration complete")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -52,8 +54,8 @@ func main() {
 	wg.Add(2)               //определяем количество горутин для группы
 
 	go func() {
-		defer wg.Done()            // отложенно сообщаем о прекращении горутины
-		err := router.Run(":8764") // инизиализируем сервер
+		defer wg.Done()               // отложенно сообщаем о прекращении горутины
+		err := router.Run(serverPort) // инизиализируем сервер
 		if err != nil {
 			log.Fatalf("Failed to start server: %v", err)
 		}
@@ -141,26 +143,26 @@ func updateFIO(c *gin.Context) {
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fio ID"})
-		return
+		log.Fatalln(err)
 	}
 
 	var fio FIO.FIO
 	err = initializers.DB.First(&fio, id).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fio"})
-		return
+		log.Fatalln(err)
 	}
 
 	err = c.ShouldBindJSON(&fio)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
+		log.Fatalln(err)
 	}
 
 	err = initializers.DB.Save(&fio).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fio"})
-		return
+		log.Fatalln(err)
 	}
 
 	c.JSON(http.StatusOK, fio)
@@ -170,7 +172,7 @@ func getAllFIOs(c *gin.Context) {
 	err := initializers.DB.Find(&fios).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		log.Fatalln(err)
 	}
 	c.JSON(http.StatusOK, fios)
 }
@@ -179,44 +181,44 @@ func getFIO(c *gin.Context) {
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
-		return
+		log.Fatalln(err)
 	}
 
 	var fio FIO.FIO
 	err = initializers.DB.First(&fio, id).Error
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "FIO not found"})
-		return
+		log.Fatalln(err)
 	}
 	c.JSON(http.StatusOK, fio)
 }
 func createFIO(c *gin.Context) {
-	var user FIO.FIO
-	err := c.ShouldBindJSON(&user)
+	var fio FIO.FIO
+	err := c.ShouldBindJSON(&fio)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
+		log.Fatalln(err)
 	}
 
-	err = initializers.DB.Create(&user).Error
+	err = initializers.DB.Create(&fio).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		log.Fatalln(err)
 	}
-	c.JSON(http.StatusCreated, user)
+	c.JSON(http.StatusCreated, fio)
 }
 func deleteFIO(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
-		return
+		log.Fatalln(err)
 	}
 
 	err = initializers.DB.Delete(&FIO.FIO{}, id).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		log.Fatalln(err)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "FIO deleted"})
 }

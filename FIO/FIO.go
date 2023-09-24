@@ -2,11 +2,9 @@ package FIO
 
 import (
 	enrichment2 "effectivemobile/FIO/enrichment"
-	"gorm.io/gorm"
 )
 
 type FIO struct {
-	gorm.Model
 	ID         uint `gorm:"primaryKey; autoIncrement"`
 	Name       string
 	Surname    string
