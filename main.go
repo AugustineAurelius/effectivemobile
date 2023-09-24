@@ -7,7 +7,6 @@ import (
 	"effectivemobile/kafka/producer"
 	"effectivemobile/schema"
 	"encoding/json"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/cache/v9"
 	"golang.org/x/crypto/sha3"
@@ -46,7 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to migrate: %v", err)
 	}
-	fmt.Println("Migration complete")
+	log.Println("Migration complete")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -80,7 +79,7 @@ func main() {
 					}
 				}
 
-				fmt.Println(fi)             //выводим в консоль
+				log.Println(fi)             //выводим в консоль
 				initializers.DB.Create(&fi) // сразу кладем в БД
 				sha := sha3.New256()
 				key, err := sha.Write([]byte(fi.GetName() +
