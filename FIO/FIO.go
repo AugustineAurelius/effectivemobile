@@ -50,3 +50,12 @@ func (f *FIO) SetSurname(surname string) {
 func (f *FIO) SetPatronymic(patronymic string) {
 	f.Patronymic = patronymic
 }
+func (f *FIO) SetAge(age float64) {
+	f.Age = age
+}
+func (f *FIO) SetGender(gender string) {
+	f.Gender = gender
+}
+func (f *FIO) SetNation(nation string) {
+	f.Nation = nation
+}

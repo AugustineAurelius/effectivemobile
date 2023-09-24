@@ -5,6 +5,7 @@ import (
 	"effectivemobile/FIO"
 	"effectivemobile/initializers"
 	"effectivemobile/kafka/producer"
+	"effectivemobile/schema"
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,7 @@ func init() {
 	initializers.ConnectKafka(&config) //Инициализируем читателя кафки
 	initializers.ConnectDB(&config)    //Инициализируем подключение к БД
 	initializers.InitializeRedis(&config)
+	router.POST("/grql", schema.GraphqlHandler)
 	//Добавление методов по принципу CRUD
 	router.GET("/fios", getAllFIOs)
 	router.GET("/fios/:id", getFIO)
@@ -180,13 +182,13 @@ func getFIO(c *gin.Context) {
 		return
 	}
 
-	var user FIO.FIO
-	err = initializers.DB.First(&user, id).Error
+	var fio FIO.FIO
+	err = initializers.DB.First(&fio, id).Error
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "FIO not found"})
 		return
 	}
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, fio)
 }
 func createFIO(c *gin.Context) {
 	var user FIO.FIO
